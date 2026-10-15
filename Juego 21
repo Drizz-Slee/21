@@ -1,0 +1,276 @@
+#include <iostream>
+#include <fstream>
+#include <cstdlib>
+#include <ctime>
+#include <string>
+
+using namespace std;
+
+const int TOTAL_CARTAS = 52;
+const int CARTAS_POR_PALO = 13;
+const int NUM_PALOS = 4;
+
+// Estructura de la Carta
+struct Carta {
+    int valor;
+    int palo;
+};
+
+// Función para obtener el nombre de la carta usando los nombres personalizados leídos del archivo
+string obtenerNombreCarta(Carta c, const string nombresPalos[]) {
+    string valStr = "";
+    if (c.valor == 1) valStr = "As";
+    else if (c.valor == 11) valStr = "J";
+    else if (c.valor == 12) valStr = "Q";
+    else if (c.valor == 13) valStr = "K";
+    else valStr = to_string(c.valor);
+
+    string paloStr = "";
+    if (c.palo >= 0 && c.palo < NUM_PALOS) {
+        paloStr = nombresPalos[c.palo];
+    } else {
+        paloStr = "Desconocido";
+    }
+
+    return valStr + " de " + paloStr;
+}
+
+int calcularPuntosCarta(int valor) {
+    if (valor > 10) return 10;
+    if (valor == 1) return 11;
+    return valor;
+}
+
+void inicializarMazo(Carta mazo[]) {
+    int k = 0;
+    for (int palo = 0; palo < NUM_PALOS; palo++) {
+        for (int valor = 1; valor <= CARTAS_POR_PALO; valor++) {
+            mazo[k].valor = valor;
+            mazo[k].palo = palo;
+            k++;
+        }
+    }
+}
+
+void barajar(Carta mazo[]) {
+    for (int i = TOTAL_CARTAS - 1; i > 0; i--) {
+        int j = rand() % (i + 1);
+        Carta temp = mazo[i];
+        mazo[i] = mazo[j];
+        mazo[j] = temp;
+    }
+}
+
+bool verificarMazo(const Carta mazo[]) {
+    int porPalo[NUM_PALOS] = {0, 0, 0, 0};
+    bool vista[NUM_PALOS][CARTAS_POR_PALO + 1] = {};
+
+    for (int i = 0; i < TOTAL_CARTAS; i++) {
+        int p = mazo[i].palo;
+        int v = mazo[i].valor;
+
+        if (p < 0 || p >= NUM_PALOS || v < 1 || v > CARTAS_POR_PALO) return false;
+        if (vista[p][v]) return false;
+
+        vista[p][v] = true;
+        porPalo[p]++;
+    }
+
+    for (int p = 0; p < NUM_PALOS; p++) {
+        if (porPalo[p] != CARTAS_POR_PALO) return false;
+    }
+    return true;
+}
+
+void demostrarLimites() {
+    Carta mazo[TOTAL_CARTAS];
+    inicializarMazo(mazo);
+
+    int total = sizeof(mazo) / sizeof(mazo[0]);
+    cout << "\nCartas en el mazo: " << total << (total == 52 ? " (correcto)" : " (error)") << endl;
+
+    int prueba = 14;
+    int encontradas = 0;
+    for (int i = 0; i < TOTAL_CARTAS; i++) {
+        if (mazo[i].valor == prueba) encontradas++;
+    }
+
+    cout << "Buscando cartas con valor " << prueba << ": " << encontradas << " encontradas" << endl;
+
+    for (int palo = 0; palo < NUM_PALOS; palo++) {
+        int cantidad = 0;
+        for (int i = 0; i < TOTAL_CARTAS; i++) {
+            if (mazo[i].palo == palo) cantidad++;
+        }
+        cout << "Palo " << palo << ": " << cantidad << " cartas" << (cantidad == 13 ? " (correcto)" : " (error)") << endl;
+    }
+}
+
+void sacarCarta(Carta mazo[], int &indiceMazo,
+                Carta mano[], int &numCartas, int &puntosTotales, int &ases, int valorGanar) {
+    Carta c = mazo[indiceMazo];
+    indiceMazo++;
+
+    mano[numCartas] = c;
+    numCartas++;
+
+    if (c.valor == 1) ases++;
+    puntosTotales += calcularPuntosCarta(c.valor);
+
+    // Si nos pasamos del valor para ganar y tenemos ases, restamos 10 puntos por cada As
+    while (puntosTotales > valorGanar && ases > 0) {
+        puntosTotales -= 10;
+        ases--;
+    }
+}
+
+int main() {
+    srand(time(0));
+
+    // Variables de configuración por defecto
+    int valorGanar = 21;
+    string nombresPalos[NUM_PALOS] = {"Picas (♠)", "Corazones (♥)", "Tréboles (♣)", "Diamantes (♦)"};
+
+    // Leer archivo de configuración setup.txt
+    ifstream archivoConfig("setup.txt");
+    if (archivoConfig.is_open()) {
+        archivoConfig >> valorGanar;
+        archivoConfig.ignore(); // Limpiar el salto de línea pendiente
+        for (int i = 0; i < NUM_PALOS; i++) {
+            getline(archivoConfig, nombresPalos[i]);
+        }
+        archivoConfig.close();
+        cout << "[Configuración cargada exitosamente33 desde 'setup.txt']\n";
+    } else {
+        cout << "[Aviso: No se encontró 'setup.txt', se usarán los valores por defecto]\n";
+    }
+
+    int fichas = 100;
+    int apuesta = 0;
+
+    cout << "=========================================" << endl;
+    cout << "              JUEGO DE " << valorGanar << "               " << endl;
+    cout << "=========================================" << endl;
+
+    demostrarLimites();
+
+    while (fichas > 0) {
+        cout << "\nTienes actualmente: " << fichas << " fichas." << endl;
+        cout << "¿Cuántas fichas deseas apostar? (0 para salir): ";
+
+        if (!(cin >> apuesta)) {
+            cin.clear();
+            cin.ignore(10000, '\n');
+            cout << "Entrada inválida. Escribe un número." << endl;
+            continue;
+        }
+
+        if (apuesta == 0) {
+            cout << "¡Gracias por jugar! Te retiras con " << fichas << " fichas." << endl;
+            break;
+        }
+
+        if (apuesta < 0) {
+            cout << "La apuesta no puede ser negativa." << endl;
+            continue;
+        }
+
+        if (apuesta > fichas) {
+            cout << "No tienes suficientes fichas. Intenta de nuevo." << endl;
+            continue;
+        }
+
+        Carta mazo[TOTAL_CARTAS];
+        int indiceMazo = 0;
+        inicializarMazo(mazo);
+        barajar(mazo);
+
+        if (!verificarMazo(mazo)) {
+            cout << "Error: el mazo es inválido." << endl;
+            return 1;
+        }
+
+        Carta manoJugador[15];
+        int numCartasJugador = 0;
+        int puntosJugador = 0;
+        int asesJugador = 0;
+
+        Carta manoDealer[15];
+        int numCartasDealer = 0;
+        int puntosDealer = 0;
+        int asesDealer = 0;
+
+        cout << "\n--- Tus cartas iniciales ---" << endl;
+
+        sacarCarta(mazo, indiceMazo, manoJugador, numCartasJugador, puntosJugador, asesJugador, valorGanar);
+        cout << "Carta 1: " << obtenerNombreCarta(manoJugador[0], nombresPalos) << endl;
+
+        sacarCarta(mazo, indiceMazo, manoJugador, numCartasJugador, puntosJugador, asesJugador, valorGanar);
+        cout << "Carta 2: " << obtenerNombreCarta(manoJugador[1], nombresPalos) << endl;
+
+        cout << "Tu total actual: " << puntosJugador << endl;
+
+        if (puntosJugador == valorGanar) {
+            cout << "¡¡BLACKJACK! ¡Tienes " << valorGanar << " exacto de entrada!" << endl;
+            fichas += (apuesta * 3) / 2;
+            continue;
+        }
+
+        char opcion;
+        bool sePaso = false;
+        while (puntosJugador < valorGanar) {
+            cout << "¿Deseas otra carta? (s/n): ";
+            cin >> opcion;
+
+            if (opcion == 's' || opcion == 'S') {
+                sacarCarta(mazo, indiceMazo, manoJugador, numCartasJugador, puntosJugador, asesJugador, valorGanar);
+                cout << "Sacaste: " << obtenerNombreCarta(manoJugador[numCartasJugador - 1], nombresPalos) << endl;
+                cout << "Tu total actual: " << puntosJugador << endl;
+
+                if (puntosJugador > valorGanar) {
+                    cout << "¡Te pasaste de " << valorGanar << "! Perdiste la apuesta." << endl;
+                    fichas -= apuesta;
+                    sePaso = true;
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+
+        if (sePaso) continue;
+
+        cout << "\n--- Turno del Dealer ---" << endl;
+
+        sacarCarta(mazo, indiceMazo, manoDealer, numCartasDealer, puntosDealer, asesDealer, valorGanar);
+        sacarCarta(mazo, indiceMazo, manoDealer, numCartasDealer, puntosDealer, asesDealer, valorGanar);
+
+        // Regla del dealer: se planta si llega a un valor cercano (ej. valorGanar - 4, o dejamos 17 configurable si se desea)
+        while (puntosDealer < (valorGanar - 4)) {
+            sacarCarta(mazo, indiceMazo, manoDealer, numCartasDealer, puntosDealer, asesDealer, valorGanar);
+        }
+
+        for (int i = 0; i < numCartasDealer; i++) {
+            cout << "Dealer carta " << (i + 1) << ": " << obtenerNombreCarta(manoDealer[i], nombresPalos) << endl;
+        }
+        cout << "Total final del Dealer: " << puntosDealer << endl;
+
+        cout << "-----------------------------------------" << endl;
+        if (puntosDealer > valorGanar) {
+            cout << "¡El dealer se pasó de " << valorGanar << "! ¡Ganaste " << apuesta << " fichas!" << endl;
+            fichas += apuesta;
+        } else if (puntosJugador > puntosDealer) {
+            cout << "¡Tienes más que el dealer! ¡Ganaste " << apuesta << " fichas!" << endl;
+            fichas += apuesta;
+        } else if (puntosJugador < puntosDealer) {
+            cout << "El dealer tiene mejor puntaje. Perdiste." << endl;
+            fichas -= apuesta;
+        } else {
+            cout << "¡Es un empate! Recuperas tus fichas." << endl;
+        }
+        cout << "-----------------------------------------" << endl;
+    }
+
+    cout << "\nJuego terminado." << endl;
+    return 0;
+}
